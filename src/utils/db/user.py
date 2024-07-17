@@ -1,131 +1,149 @@
-from sqlalchemy import select, update, func
-from collections import OrderedDict
+import sqlalchemy
+import datetime
+from typing import Union
+from sqlalchemy import select, update, func, delete
 from pydantic import BaseModel
 
 
+from utils.db.models import *
 from utils.logging.logger import logger
+from utils.db.models import get_engine
+async_session = get_engine()
 
-from utils.db.models import async_session
-from utils.db.models import SupplementationAccess
-
-
-async def is_banned_user(user_id: int) -> bool:
-    async with async_session() as session:
-        query = select(SupplementationAccess.is_ban).where(
-            SupplementationAccess.user_id == user_id)
-        result = await session.execute(query)
-        banned = result.scalars().first()
-        if banned:
-            await logger.info(f'У пользователя {user_id} есть бан')
-            return True
-        return False
+class GetUser(BaseModel):
+    user_id: int
+    username: str
+    full_name: str
+    join_time: datetime.datetime
+    is_banned: bool
+    welcome_notif_id: int   
+    feature_notif_id: int
 
 
-async def is_access_user(
-        message: dict = None,
-        user_id: int = None
-) -> bool:
-    """Проверка что пользователь имеет доступ
+class User():
+    def __init__(
+        self, 
+        user_id: int = None,
+        message = None
+    ):
+        self.user_id = user_id
+        self.message = message
 
-    Если послано сообщение, то отправляет полную информацию в логгирование.
-    Если дан только user_id, значит для мониторинга."""
+    async def is_banned_user(self) -> bool:
+        try:
+            async with async_session() as session:
+                query = select(UserModel.is_banned).where(
+                    UserModel.user_id == self.user_id)
+                result = await session.execute(query)
+                banned = result.scalars().first()
+                if banned:
+                    return True
+                return False
+        except TypeError:
+            return False
 
-    if message is not None:
-        user = message.from_user
+    async def add_user(self) -> None:
+        _user = self.message.from_user
         async with async_session() as session:
             async with session.begin():
-                query = select(SupplementationAccess).where(
-                    SupplementationAccess.user_id == int(user.id))
-                result = await session.execute(query)
-                if result.scalar():
-                    return True
-                else:
+                try:
+                    local_time = datetime.datetime.now()
+                    user = UserModel(
+                        user_id=_user.id,
+                        username=_user.username,
+                        full_name=_user.full_name,
+                        join_time=local_time)
+                    session.add(user)
+                    await session.commit()
                     await logger.info(
-                        f'Нет доступа у юзера id={user.id}',
-                        extra={'full_data': message})
-                    return False
-    else:
+                        f'👤 Новый пользователь id={_user.id}, name={_user.full_name} зашёл',
+                        extra={'full_data': self.message})
+                except sqlalchemy.exc.IntegrityError:
+                    pass
+
+    async def get_user(self) -> GetUser:
         async with async_session() as session:
             async with session.begin():
-                query = select(SupplementationAccess).where(
-                    SupplementationAccess.user_id == user_id)
-                result = await session.execute(query)
-                if result.scalar():
-                    return True
-                else:
-                    await logger.info(
-                            f'У пользователя с id={user_id} нет доступа для мониторинга')
-                    return False
+                q = select(UserModel).where(UserModel.user_id == self.user_id)
+                for i in await session.execute(q):
+                    return GetUser(
+                        user_id=i.UserModel.user_id,
+                        username=i.UserModel.username,
+                        full_name=i.UserModel.full_name,
+                        join_time=i.UserModel.join_time,
+                        is_banned=i.UserModel.is_banned,
+                        status=i.UserModel.status,
+                        sex=i.UserModel.sex,
+                        old=i.UserModel.old,
+                        goal=i.UserModel.goal,
+                        time=i.UserModel.time,
+                        fragment_number=i.UserModel.fragment_number,
+                        welcome_notif_id=i.UserModel.welcome_notif_id,
+                        feature_notif_id=i.UserModel.feature_notif_id
+                    )
 
-
-async def get_access_users() -> list:
-    """Получить пользователей с доступом """
-    class User(BaseModel):
-        user_id: int
-        buy_time: str
-        end_time: str
-
-    users = []
-    async with async_session() as session:
-        async with session.begin():
-            query = select(SupplementationAccess).where()
-            for i in await session.execute(query):
-                user = User(
-                    user_id=int(i.SupplementationAccess.user_id),
-                    buy_time=str(
-                        i.SupplementationAccess.buy_time.replace(tzinfo=None)),
-                    end_time=str(
-                        i.SupplementationAccess.end_time.replace(tzinfo=None)))
-                users.append(user)
+    async def get_users(self)  -> list[GetUser]:
+        users = []
+        async with async_session() as session:
+            async with session.begin():
+                q = select(UserModel).order_by(UserModel.join_time)
+                for i in await session.execute(q):
+                    users.append(GetUser(
+                        user_id=i.UserModel.user_id,
+                        username=i.UserModel.username,
+                        full_name=i.UserModel.full_name,
+                        join_time=i.UserModel.join_time,
+                        is_banned=i.UserModel.is_banned,
+                        status=i.UserModel.status,
+                        sex=i.UserModel.sex,
+                        old=i.UserModel.old,
+                        goal=i.UserModel.goal,
+                        time=i.UserModel.time,
+                        fragment_number=i.UserModel.fragment_number,
+                        welcome_notif_id=i.UserModel.welcome_notif_id,
+                        feature_notif_id=i.UserModel.feature_notif_id
+                        )
+                    )
         return users
 
+    async def update_welcome_msg_id(self, new_id: int) -> None:
+        async with async_session() as session:
+            async with session.begin():
+                q = update(UserModel).where(
+                    UserModel.user_id == self.user_id
+                ).values(
+                    welcome_notif_id=new_id
+                )
+                await session.execute(q)
 
-async def update_user_experience(
-        user_id: int,
-        count: int):
-    "Обновление звёзд пользователя"
-    async with async_session() as session:
-        async with session.begin():
-            query = update(SupplementationAccess).where(
-                SupplementationAccess.user_id == user_id).values(
-                    experience=SupplementationAccess.experience+count)
-            await session.execute(query)
-            await logger.info(f'Обновление опыта {count} для пользователя {user_id}')
+    async def get_welcome_msg_id(self)  -> int:
+        async with async_session() as session:
+            async with session.begin():
+                q = select(UserModel).where(
+                    UserModel.user_id == self.user_id
+                )
+                for i in await session.execute(q):
+                    if i == -1:
+                        return -1
+                    return i.UserModel.welcome_notif_id
 
-
-async def get_user_experience(
-        user_id: int):
-    """Получение опыта пользователя"""
-    async with async_session() as session:
-        async with session.begin():
-            query = select(SupplementationAccess).where(
-                SupplementationAccess.user_id == user_id)
-            for i in await session.execute(query):
-                return i.SupplementationAccess.experience
-
-            await logger.info(f'Получение опыта для пользователя {user_id}')
-
-
-# async def get_users_by_experience():
-#     async with async_session() as session:
-#         async with session.begin():
-#             query = select(SupplementationAccess.user_id,
-#                            SupplementationAccess.experience).where(
-#                 SupplementationAccess.experience > 0)
-#             result = await session.execute(query)
-#             return result.all()
-
-
-async def get_user_position_by_experience(user_id: int):
-    async with async_session() as session:
-        async with session.begin():
-            query = select(SupplementationAccess).order_by(SupplementationAccess.experience.desc())
-            dct = OrderedDict()
-            for i in await session.execute(query):
-                dct[i.SupplementationAccess.user_id] = i.SupplementationAccess.experience
-
-            position = 0            
-            for k,v in dct.items():
-                position += 1
-                if k == user_id:
-                    return position
+    async def update_feature_msg_id(self, new_id: int) -> None:
+        async with async_session() as session:
+            async with session.begin():
+                q = update(UserModel).where(
+                    UserModel.user_id == self.user_id
+                ).values(
+                    feature_notif_id=new_id
+                )
+                await session.execute(q)
+    
+    async def get_feature_notif_id(self) -> int:
+        async with async_session() as session:
+            async with session.begin():
+                q = select(UserModel).where(
+                    UserModel.user_id == self.user_id
+                )
+                for i in await session.execute(q):
+                    if i == -1:
+                        return -1
+                    return i.UserModel.feature_notif_id

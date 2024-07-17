@@ -5,6 +5,10 @@ from aiogram import types
 
 from utils.config import BOT_KEY
 from utils.logging.logger import logger
+from handlers import (
+    start
+)
+from middlewares.user_ban import CheckUserWasBannedMiddleware
 
 bot = Bot(token=BOT_KEY)
 dp = Dispatcher()
@@ -12,14 +16,14 @@ dp = Dispatcher()
 
 async def bot_task(bot: bot, dp: Dispatcher):
     try:
-        from utils.db.models import init_db
-        await init_db()
-        
-
+        # раскомментировать после заполнения данных от БД
+        # from utils.db.models import init_db
+        # await init_db()
         await logger.info('☑️ Запуск бота...', send_alert=True)
 
-        dp.include_routers()
-
+        dp.include_routers(
+            start.router
+        )
         dp.message.middleware(CheckUserWasBannedMiddleware())
         
         await logger.info('✅ Бот запущен', send_alert=True)
@@ -34,10 +38,7 @@ async def bot_task(bot: bot, dp: Dispatcher):
 
 async def additional_tasks(bot, dp):
     scheduler = AsyncIOScheduler()
-
-    monitor = Monitor(bot=bot, dp=dp)
-    scheduler.add_job(monitor.user_monitoring, 'cron', hour='*', minute=0)
-
+    # scheduler.add_job('cron', hour='*', minute=0)
 
     scheduler.start()
 

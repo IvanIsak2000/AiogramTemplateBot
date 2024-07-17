@@ -5,7 +5,7 @@ load_dotenv()
 
 BOT_KEY = os.getenv('BOT_KEY')
 LOG_TOKEN = os.getenv('LOG_TOKEN')
-MODERATOR_ID = os.getenv('MAIN_MODERATOR')
+MODERATOR_ID = os.getenv('MODERATOR_ID')
 POSTGRESQL_HOST = os.getenv('POSTGRESQL_HOST')
 POSTGRESQL_PORT = os.getenv('POSTGRESQL_PORT')
 POSTGRESQL_USER = os.getenv('POSTGRESQL_USER')

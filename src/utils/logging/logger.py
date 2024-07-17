@@ -3,7 +3,7 @@ import logging
 import requests
 from utils.config import LOG_TOKEN
 from utils.config import BOT_KEY
-# from utils.db.settings import get_main_moderator_id
+from utils.config import MODERATOR_ID
 
 
 class MyLogger():
@@ -18,31 +18,36 @@ class MyLogger():
     async def send_alert_to_main_moderator(self, text: str) -> None:
         url = f'https://api.telegram.org/bot{BOT_KEY}/sendMessage'
         params = {
-            'chat_id': 5261974343,
+            'chat_id': MODERATOR_ID,
             'text': f'СООБЩЕНИЕ ОТ БОТА:\n{text}'}
         requests.post(url, params=params)
 
     async def info(self, message: str, send_alert: bool = False, extra: dict = None) -> None:
-        if send_alert:
-            self.logger.info(msg=message, extra=extra)
-            await self.send_alert_to_main_moderator(
-                text=message)
-        else:
-            self.logger.info(message)
+        if LOG_TOKEN == '':
+            return await self.send_alert_to_main_moderator(text=message)
+        else:         
+            if send_alert:
+                await self.send_alert_to_main_moderator(text=message)
+                self.logger.info(msg=message, extra=extra)
+            else:
+                self.logger.info(message)
 
     async def error(self, message: str) -> None:
-        self.logger.error(message)
-        await self.send_alert_to_main_moderator(
-            text=message
-        )
-        # self.logger.error(message)
-        # await self.send_alert_to_main_moderator(
-        #     text=message)
-
+        if LOG_TOKEN == '':
+            print(f'send_alert_to_main_moderator: {message}')
+        else: 
+            self.logger.error(message)
+            await self.send_alert_to_main_moderator(
+                text=message
+            )
+        
     async def critical(self, message: str, extra: dict = None) -> None:
-        self.logger.critical(message, extra=extra)
-        await self.send_alert_to_main_moderator(
-            text=f'{message}\nEXtra:{extra}')
-
+        if LOG_TOKEN == '':
+            print(f'send_alert_to_main_moderator: {message}')
+        else: 
+            self.logger.critical(message, extra=extra)
+            await self.send_alert_to_main_moderator(
+                text=f'{message}\nEXtra:{extra}')
+    
 
 logger = MyLogger()
