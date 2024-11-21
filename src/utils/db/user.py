@@ -1,39 +1,30 @@
-import sqlalchemy
-import datetime
-from typing import Union
-from sqlalchemy import select, update, func, delete
-from pydantic import BaseModel
+from . import *
+
+from utils.logger.logger import BotLogger
 
 
-from utils.db.models import *
-from utils.logging.logger import logger
-from utils.db.models import get_engine
-async_session = get_engine()
-
-class GetUser(BaseModel):
+class User(BaseModel):
     user_id: int
-    username: str
+    username: Optional[str]
     full_name: str
     join_time: datetime.datetime
     is_banned: bool
-    welcome_notif_id: int   
+    account_created: bool
+    welcome_notif_id: int
     feature_notif_id: int
+    balance: int = 0
+    ref_id: Optional[int]
 
 
-class User():
-    def __init__(
-        self, 
-        user_id: int = None,
-        message = None
-    ):
-        self.user_id = user_id
-        self.message = message
+class UserOrm:
+    def __init__(self):
+        self.async_session = async_session
 
-    async def is_banned_user(self) -> bool:
+    async def is_banned_user(self, user_id: int) -> bool:
         try:
-            async with async_session() as session:
+            async with self.async_session() as session:
                 query = select(UserModel.is_banned).where(
-                    UserModel.user_id == self.user_id)
+                    UserModel.user_id == user_id)
                 result = await session.execute(query)
                 banned = result.scalars().first()
                 if banned:
@@ -42,108 +33,106 @@ class User():
         except TypeError:
             return False
 
-    async def add_user(self) -> None:
-        _user = self.message.from_user
-        async with async_session() as session:
+    async def add_user(self, user_id: int, full_name: str = None, username: str = None, ref_id: int = None) -> bool:
+        async with self.async_session() as session:
             async with session.begin():
                 try:
+                    await BotLogger().info(
+                        message=f'Начало добавления пользователя: username={username}, user_id={user_id}')
                     local_time = datetime.datetime.now()
-                    user = UserModel(
-                        user_id=_user.id,
-                        username=_user.username,
-                        full_name=_user.full_name,
-                        join_time=local_time)
-                    session.add(user)
+                    session.add(
+                        UserModel(
+                            user_id=user_id,
+                            username=username,
+                            full_name=full_name,
+                            join_time=local_time,
+                            account_created=False,
+                            ref_id=ref_id
+                        ),
+                    )
                     await session.commit()
-                    await logger.info(
-                        f'👤 Новый пользователь id={_user.id}, name={_user.full_name} зашёл',
-                        extra={'full_data': self.message})
+
+                    await BotLogger().info(
+                        message=f'Пользователь добавлен: username={username}, user_id={user_id}'
+                    )
+                    return True
                 except sqlalchemy.exc.IntegrityError:
+                    await BotLogger().info(
+                        message=f'Пользователь известен: username={username}, user_id={user_id}')
                     pass
+                except Exception as e:
+                    raise e
 
-    async def get_user(self) -> GetUser:
-        async with async_session() as session:
+    async def remove(self, user_id: int):
+        async with self.async_session() as session:
             async with session.begin():
-                q = select(UserModel).where(UserModel.user_id == self.user_id)
+                query = delete(UserModel).where(
+                    UserModel.user_id == user_id
+                )
+                await session.execute(query)
+                return True
+
+    async def create_account(self, user_id: int) -> bool:
+        async with self.async_session() as session:
+            async with session.begin():
+                q = update(UserModel).where(
+                    UserModel.user_id == user_id
+                ).values(
+                    account_created=True
+                )
+                await session.execute(q)
+                return True
+
+    async def ban_user(self, user_id: int) -> bool:
+        async with self.async_session() as session:
+            async with session.begin():
+                q = update(UserModel).where(
+                    UserModel.user_id == user_id
+                ).values(
+                    is_banned=True
+                )
+                await session.execute(q)
+                return True
+
+    async def unban_user(self, user_id: int) -> bool:
+        async with self.async_session() as session:
+            async with session.begin():
+                q = update(UserModel).where(
+                    UserModel.user_id == user_id
+                ).values(
+                    is_banned=False
+                )
+                await session.execute(q)
+                return True
+
+    async def get_user(self, user_id: int) -> User:
+        async with self.async_session() as session:
+            async with session.begin():
+                q = select(UserModel).where(UserModel.user_id == user_id)
                 for i in await session.execute(q):
-                    return GetUser(
+                    return User(
                         user_id=i.UserModel.user_id,
                         username=i.UserModel.username,
                         full_name=i.UserModel.full_name,
                         join_time=i.UserModel.join_time,
                         is_banned=i.UserModel.is_banned,
-                        status=i.UserModel.status,
-                        sex=i.UserModel.sex,
-                        old=i.UserModel.old,
-                        goal=i.UserModel.goal,
-                        time=i.UserModel.time,
-                        fragment_number=i.UserModel.fragment_number,
+                        account_created=i.UserModel.account_created,
                         welcome_notif_id=i.UserModel.welcome_notif_id,
-                        feature_notif_id=i.UserModel.feature_notif_id
+                        feature_notif_id=i.UserModel.feature_notif_id,
+                        balance=i.UserModel.balance,
+                        ref_id=i.UserModel.ref_id
                     )
 
-    async def get_users(self)  -> list[GetUser]:
-        users = []
-        async with async_session() as session:
+    async def is_have_account(self, user_id: int) -> bool:
+        async with self.async_session() as session:
             async with session.begin():
-                q = select(UserModel).order_by(UserModel.join_time)
-                for i in await session.execute(q):
-                    users.append(GetUser(
-                        user_id=i.UserModel.user_id,
-                        username=i.UserModel.username,
-                        full_name=i.UserModel.full_name,
-                        join_time=i.UserModel.join_time,
-                        is_banned=i.UserModel.is_banned,
-                        status=i.UserModel.status,
-                        sex=i.UserModel.sex,
-                        old=i.UserModel.old,
-                        goal=i.UserModel.goal,
-                        time=i.UserModel.time,
-                        fragment_number=i.UserModel.fragment_number,
-                        welcome_notif_id=i.UserModel.welcome_notif_id,
-                        feature_notif_id=i.UserModel.feature_notif_id
-                        )
-                    )
-        return users
+                q = select(UserModel).where(UserModel.user_id == user_id)
+                result = await session.execute(q)
+                user = result.scalars().first()  # Получаем первого пользователя или None, если его нет
 
-    async def update_welcome_msg_id(self, new_id: int) -> None:
-        async with async_session() as session:
-            async with session.begin():
-                q = update(UserModel).where(
-                    UserModel.user_id == self.user_id
-                ).values(
-                    welcome_notif_id=new_id
-                )
-                await session.execute(q)
+                # Если пользователь не найден или account_created == False, возвращаем False
+                if user is None or not user.account_created:
+                    return False
 
-    async def get_welcome_msg_id(self)  -> int:
-        async with async_session() as session:
-            async with session.begin():
-                q = select(UserModel).where(
-                    UserModel.user_id == self.user_id
-                )
-                for i in await session.execute(q):
-                    if i == -1:
-                        return -1
-                    return i.UserModel.welcome_notif_id
-
-    async def update_feature_msg_id(self, new_id: int) -> None:
-        async with async_session() as session:
-            async with session.begin():
-                q = update(UserModel).where(
-                    UserModel.user_id == self.user_id
-                ).values(
-                    feature_notif_id=new_id
-                )
-                await session.execute(q)
-    
-    async def get_feature_notif_id(self) -> int:
-        async with async_session() as session:
-            async with session.begin():
-                q = select(UserModel).where(
-                    UserModel.user_id == self.user_id
-                )
-                for i in await session.execute(q):
-                    if i == -1:
-                        return -1
-                    return i.UserModel.feature_notif_id
+                # Если пользователь найден и account_created == True, возвращаем True
+                return True

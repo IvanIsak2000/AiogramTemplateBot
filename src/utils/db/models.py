@@ -1,42 +1,40 @@
-import asyncio
 from sqlalchemy import (
     MetaData,
     Integer,
     BigInteger,
-    Float,
     String,
     Boolean,
     DateTime,
-    JSON,
-    TEXT,
-    UniqueConstraint,
-    TIME
 )
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.orm import declarative_base
+
+from sqlalchemy.orm import Mapped, mapped_column, declarative_base
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
-    async_sessionmaker
+    async_sessionmaker,
+    AsyncSession
 )
-import datetime
-from datetime import timedelta
 from utils.config import DSN
-from utils.logging.logger import logger
+from utils.logger.logger import BotLogger
 
 meta = MetaData()
 Base = declarative_base(metadata=meta)
 
-def get_engine():
-    try:
-        engine = create_async_engine(DSN)
-        async_session = async_sessionmaker(engine)
-        return async_session
-    except ValueError as e:
-        if 'invalid literal for int() with base 10: ':
-            asyncio
-            asyncio.run(logger.critical(f'Движок не создан, заполните config.py'))
-            return None
+try:
+    engine = create_async_engine(
+        DSN,
+        pool_size=10,
+        max_overflow=20,
+        connect_args={"timeout": 120}
+    )
+
+    async_session = async_sessionmaker(
+        engine,
+        expire_on_commit=False,
+        class_=AsyncSession
+    )
+except ValueError:
+    pass
+
 
 class UserModel(Base):
     __tablename__ = 'users'
@@ -55,17 +53,9 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(meta.create_all)
-            await logger.info('✅ БД созданы')
     except Exception as e:
         if "already exists" in str(e):
-            await logger.info('✅ БД уже существуют')
+            await BotLogger().info('✅ DB is created')
         else:
-            await logger.critical(f'Databases crashed: {e}')
-
-
-async def time_after_month(_time):
-    one_month = timedelta(days=30)
-    _time_after_month = _time + one_month
-    return _time_after_month
-
+            await BotLogger().critical(f'DB error: {e}')
     

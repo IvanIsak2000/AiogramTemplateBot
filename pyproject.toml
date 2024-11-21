@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "poetry_env"
+name = "aiogram_template_bot"
 version = "0.1.0"
 description = ""
 authors = ["Ivan Sakharov <vingving648@gmail.com>"]
@@ -18,8 +18,7 @@ asyncpg = "^0.29.0"
 logtail-python = "^0.2.10"
 pytz = "^2024.1"
 apscheduler = "^3.10.4"
-aiogram-dialog = "^2.1.0"
-mypy = "^1.9.0"
+aiogram = "3.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

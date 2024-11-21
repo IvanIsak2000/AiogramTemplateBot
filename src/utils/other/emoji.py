@@ -1,6 +1,6 @@
 import aiogram
 from aiogram import types
-import  asyncio
+import asyncio
 
 
 async def send_emoji(
@@ -8,8 +8,8 @@ async def send_emoji(
         message: types.Message = None,
         bot: aiogram.Bot = None,
         emoji: str = '🧭',
-        to_delete: bool  = True,
-        time: float  = 2.5,
+        to_delete: bool = True,
+        time: float = 2.5,
 ):
     """Отправка крутого эмодзи в чат"""
     

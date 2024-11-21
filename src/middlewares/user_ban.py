@@ -2,10 +2,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from typing import Callable, Dict, Any, Awaitable
 
-from utils.db.user import *
-from utils.logging.logger import logger
-
-import asyncio
+from utils.db.user import UserOrm
 
 
 class CheckUserWasBannedMiddleware(BaseMiddleware):
@@ -15,9 +12,7 @@ class CheckUserWasBannedMiddleware(BaseMiddleware):
             event: TelegramObject,
             data: Dict[str, Any]) -> Any:
         user_id = event.from_user.id
-        if await User(user_id=user_id).is_banned_user():
-            # passing if user is banned
+        if await UserOrm().is_banned_user(user_id=user_id):
             pass
-
         else:
             return await handler(event, data)
