@@ -7,51 +7,43 @@ from datetime import datetime
 import requests
 from inspect import stack, getmodule
 
-from utils.config import BOT_KEY, MODERATOR_ID
+from utils.config import BOT_KEY, MODERATOR_ID, MY_TIMEZONE
 
 
 class BotLogger:
     def __init__(self, file: str = 'main.log') -> None:
         """
-        Общий класс для логгирования действия внутри бота.
+        Main logging class for a bot.
 
-        Логгирует в файл с именем файла, откуда был вызван.
-
-        Использование:
-        1. Импортировать класс и передать название, например users.log
-        2. Логи будут записаны с указанием модуля, откуда был вызван класс.
+        Usage:
+        1. Import class
+        2. Call class with logging file(default, main.log)
+        and with log level funcion(info, error, critical)
         """
-        # Получение информации о файле вызова
         frame = stack()[1]
         module = getmodule(frame[0])
         name = module.__file__.split('/')[-1] if module else __name__
 
-        # Настройка логгера
         self.logger = logging.getLogger(name)
 
-        # Если у логгера уже есть обработчики, не добавляем их снова
         if not self.logger.hasHandlers():
-            # Создаем обработчик для записи в файл
             file_handler = logging.FileHandler(file)
             file_handler.setLevel(logging.INFO)
 
-            # Настройка форматтера с временной зоной UTC+3
             formatter = logging.Formatter(
                 fmt=f'%(levelname)s - {name} - %(asctime)s: %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
             file_handler.setFormatter(formatter)
 
-            # Добавляем обработчик к логгеру
             self.logger.addHandler(file_handler)
             self.logger.setLevel(logging.INFO)
 
         logging.getLogger('aiogram').setLevel(logging.WARNING)
 
     def formatTime(self, record, datefmt=None):
-        """Переопределение метода форматирования времени с учетом UTC+3."""
-        # Получение текущего времени с учетом временной зоны
-        tz = pytz.timezone('Europe/Moscow')  # UTC+3
+        """Override built-in function to get time in current location """
+        tz = pytz.timezone(MY_TIMEZONE)
         record_time = datetime.fromtimestamp(record.created, tz)
         if datefmt:
             return record_time.strftime(datefmt)
@@ -75,6 +67,5 @@ class BotLogger:
         await self.send_alert(text=message)
 
     async def critical(self, message: str, extra: dict = None) -> None:
-        await asyncio.sleep(2)
         self.logger.critical(message, extra=extra)
         await self.send_alert(text=f'{message}\nExtra:{extra}')
