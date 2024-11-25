@@ -7,4 +7,3 @@ from sqlalchemy import select, update, func, delete, cast
 
 from utils.db.models import *
 from utils.db.models import engine, async_session
-
