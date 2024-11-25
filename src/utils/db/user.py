@@ -38,7 +38,7 @@ class UserOrm:
             async with session.begin():
                 try:
                     await BotLogger().info(
-                        message=f'Начало добавления пользователя: username={username}, user_id={user_id}')
+                        message=f'Adding user: username={username}, user_id={user_id}')
                     local_time = datetime.datetime.now()
                     session.add(
                         UserModel(
@@ -53,17 +53,17 @@ class UserOrm:
                     await session.commit()
 
                     await BotLogger().info(
-                        message=f'Пользователь добавлен: username={username}, user_id={user_id}'
+                        message=f'User added: username={username}, user_id={user_id}'
                     )
                     return True
                 except sqlalchemy.exc.IntegrityError:
                     await BotLogger().info(
-                        message=f'Пользователь известен: username={username}, user_id={user_id}')
+                        message=f'User is know: username={username}, user_id={user_id}')
                     pass
                 except Exception as e:
                     raise e
 
-    async def remove(self, user_id: int):
+    async def remove(self, user_id: int) -> bool:
         async with self.async_session() as session:
             async with session.begin():
                 query = delete(UserModel).where(
@@ -128,11 +128,7 @@ class UserOrm:
             async with session.begin():
                 q = select(UserModel).where(UserModel.user_id == user_id)
                 result = await session.execute(q)
-                user = result.scalars().first()  # Получаем первого пользователя или None, если его нет
-
-                # Если пользователь не найден или account_created == False, возвращаем False
+                user = result.scalars().first()
                 if user is None or not user.account_created:
                     return False
-
-                # Если пользователь найден и account_created == True, возвращаем True
                 return True

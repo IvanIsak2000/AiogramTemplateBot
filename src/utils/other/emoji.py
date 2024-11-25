@@ -11,7 +11,7 @@ async def send_emoji(
         to_delete: bool = True,
         time: float = 2.5,
 ):
-    """Отправка крутого эмодзи в чат"""
+    """Send an emoji to a chat"""
     
     if callback:
         emoji_message = await callback.message.answer(

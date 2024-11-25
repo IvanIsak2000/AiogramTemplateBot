@@ -13,6 +13,7 @@ class CheckUserWasBannedMiddleware(BaseMiddleware):
             data: Dict[str, Any]) -> Any:
         user_id = event.from_user.id
         if await UserOrm().is_banned_user(user_id=user_id):
+            # Ignore command from banned user
             pass
         else:
             return await handler(event, data)
